@@ -30,8 +30,8 @@ pub use ssh::SSHDataSource;
 #[async_trait]
 pub trait ZpoolDataSource: Send + Sync {
     /// Fetch the zpool status as a JSON string
-    async fn fetch_status(&self) -> anyhow::Result<String>;
+    async fn fetch(&self) -> anyhow::Result<String>;
 
     /// Get a descriptive name for this data source
-    fn source_name(&self) -> String;
+    fn name(&self) -> String;
 }

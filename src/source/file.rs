@@ -32,7 +32,7 @@ impl FileDataSource {
 
 #[async_trait]
 impl ZpoolDataSource for FileDataSource {
-    async fn fetch_status(&self) -> Result<String> {
+    async fn fetch(&self) -> Result<String> {
         let content = fs::read_to_string(&self.file_path).await?;
 
         // Validate it's valid JSON
@@ -41,7 +41,7 @@ impl ZpoolDataSource for FileDataSource {
         Ok(content)
     }
 
-    fn source_name(&self) -> String {
+    fn name(&self) -> String {
         format!("file:{}", self.file_path.display())
     }
 }
@@ -53,7 +53,7 @@ mod tests {
     #[tokio::test]
     async fn test_file_datasource_invalid_path() {
         let source = FileDataSource::new(PathBuf::from("zpool.json"));
-        let status = source.fetch_status().await.unwrap();
+        let status = source.fetch().await.unwrap();
 
         assert!(!status.is_empty());
     }
