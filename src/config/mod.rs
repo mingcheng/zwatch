@@ -46,11 +46,6 @@ pub enum NotifierConfig {
         #[serde(default)]
         headers: HashMap<String, String>,
     },
-    MQ {
-        amqp_url: String,
-        exchange: String,
-        routing_key: String,
-    },
     Bark {
         server_url: String,
         device_key: String,

@@ -14,14 +14,12 @@
 
 mod bark;
 mod console;
-mod mq;
 mod telegram;
 mod webhook;
 
 use async_trait::async_trait;
 pub use bark::BarkNotifier;
 pub use console::ConsoleNotifier;
-pub use mq::MQNotifier;
 pub use telegram::TelegramNotifier;
 pub use webhook::WebhookNotifier;
 

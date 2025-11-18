@@ -30,9 +30,7 @@ use tracing::{error, info, warn};
 
 use config::{Config, DataSourceConfig, NotifierConfig};
 use health::HealthChecker;
-use notifier::{
-    BarkNotifier, ConsoleNotifier, MQNotifier, Notifier, TelegramNotifier, WebhookNotifier,
-};
+use notifier::{BarkNotifier, ConsoleNotifier, Notifier, TelegramNotifier, WebhookNotifier};
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 use source::LocalCommandDataSource;
 use source::{FileDataSource, SSHDataSource, ZpoolDataSource};
@@ -128,15 +126,6 @@ impl ZWatch {
                     }
                     Box::new(notifier)
                 }
-                NotifierConfig::MQ {
-                    amqp_url,
-                    exchange,
-                    routing_key,
-                } => Box::new(MQNotifier::new(
-                    amqp_url.clone(),
-                    exchange.clone(),
-                    routing_key.clone(),
-                )),
                 NotifierConfig::Bark {
                     server_url,
                     device_key,

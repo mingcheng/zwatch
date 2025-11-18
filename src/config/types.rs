@@ -118,11 +118,6 @@ impl Config {
                     server_url: "https://api.day.app".to_string(),
                     device_key: "YOUR_DEVICE_KEY".to_string(),
                 },
-                NotifierConfig::MQ {
-                    amqp_url: "amqp://guest:guest@localhost:5672".to_string(),
-                    exchange: "zfs.alerts".to_string(),
-                    routing_key: "pool.status".to_string(),
-                },
             ],
             settings: Settings {
                 check_interval: 300,
