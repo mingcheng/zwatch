@@ -51,7 +51,7 @@ impl Notifier for BarkNotifier {
         let message = report.to_alert_message();
         let body = urlencoding::encode(&message);
 
-        let full_url = format!("{}?body={}", url, body);
+        let full_url = format!("{}/{}", url, body);
 
         let response = self.client.get(&full_url).send().await?;
 
@@ -63,7 +63,43 @@ impl Notifier for BarkNotifier {
         Ok(())
     }
 
-    fn notifier_name(&self) -> String {
+    fn name(&self) -> String {
         format!("bark:{}", self.device_key)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::health::DeviceError;
+    use crate::notifier::Notifier;
+
+    #[tokio::test]
+    async fn test_bark_notifier() {
+        let api_key = std::env::var("BARK_API_KEY").unwrap_or("".to_string());
+        if api_key.is_empty() {
+            return;
+        }
+
+        let notifier = super::BarkNotifier::new("https://api.day.app".to_string(), api_key);
+
+        notifier
+            .notify(&crate::health::HealthReport {
+                pool_name: "testpool".to_string(),
+                pool_state: "ONLINE".to_string(),
+                is_healthy: false,
+                pool_error_count: 5,
+                scan_errors: 1,
+                device_errors: vec![DeviceError {
+                    device_name: "sda".to_string(),
+                    device_path: Some("/dev/sda".to_string()),
+                    state: "DEGRADED".to_string(),
+                    read_errors: 10,
+                    write_errors: 5,
+                    checksum_errors: 2,
+                }],
+                message: "Test alert message".to_string(),
+            })
+            .await
+            .unwrap();
     }
 }

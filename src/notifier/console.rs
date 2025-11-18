@@ -12,11 +12,11 @@
  * Last Modified: 2025-11-18 12:23:54
  */
 
-use anyhow::Result;
-use async_trait::async_trait;
-
 use crate::health::HealthReport;
 use crate::notifier::Notifier;
+use anyhow::Result;
+use async_trait::async_trait;
+use tracing::info;
 
 /// Console/stdout notifier for debugging
 pub struct ConsoleNotifier;
@@ -24,15 +24,39 @@ pub struct ConsoleNotifier;
 #[async_trait]
 impl Notifier for ConsoleNotifier {
     async fn notify(&self, report: &HealthReport) -> Result<()> {
-        println!("\n{}", "=".repeat(60));
-        println!("NOTIFICATION");
-        println!("{}", "=".repeat(60));
-        println!("{}", report.to_alert_message());
-        println!("{}", "=".repeat(60));
+        info!("\n{}", "=".repeat(60));
+        info!("NOTIFICATION");
+        info!("{}", "=".repeat(60));
+        info!("{}", report.to_alert_message());
+        info!("{}", "=".repeat(60));
         Ok(())
     }
 
-    fn notifier_name(&self) -> String {
+    fn name(&self) -> String {
         "console".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::health::HealthReport;
+    use crate::notifier::Notifier;
+
+    #[tokio::test]
+    async fn test_console_notifier() {
+        let notifier = Box::new(super::ConsoleNotifier);
+
+        notifier
+            .notify(&HealthReport {
+                pool_name: "testpool".to_string(),
+                pool_state: "".to_string(),
+                is_healthy: true,
+                pool_error_count: 0,
+                scan_errors: 0,
+                device_errors: vec![],
+                message: "".to_string(),
+            })
+            .await
+            .unwrap();
     }
 }

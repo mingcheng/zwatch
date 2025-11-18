@@ -84,8 +84,8 @@ impl HealthChecker {
     fn collect_device_errors(vdev_root: &VdevRoot) -> Vec<DeviceError> {
         let mut errors = Vec::new();
 
-        for (_, vdev) in &vdev_root.devices {
-            Self::check_vdev(vdev, &mut errors);
+        for dev in vdev_root.devices.values() {
+            Self::check_vdev(dev, &mut errors);
         }
 
         errors
@@ -114,8 +114,8 @@ impl HealthChecker {
 
         // Recursively check child vdevs
         if let Some(children) = &vdev.vdevs {
-            for (_, child) in &children.devices {
-                Self::check_vdev(child, errors);
+            for device in children.devices.values() {
+                Self::check_vdev(device, errors);
             }
         }
     }

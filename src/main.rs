@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:34:23
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 15:10:59
+ * Last Modified: 2025-11-18 18:29:52
  */
 
 /*!
@@ -25,6 +25,7 @@ mod notifier;
 mod source;
 
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -35,9 +36,38 @@ use notifier::{BarkNotifier, ConsoleNotifier, Notifier, TelegramNotifier, Webhoo
 use source::LocalCommandDataSource;
 use source::{FileDataSource, SSHDataSource, ZpoolDataSource};
 
+/// ZFS Pool Monitoring and Alerting System
+#[derive(Parser)]
+#[command(name = "zwatch")]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Configuration file path
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Generate example configuration file
+    Init {
+        /// Output path for the configuration file
+        #[arg(short, long, default_value = "zwatch.toml")]
+        output: String,
+    },
+    /// Run a single check without continuous monitoring
+    Check {
+        /// Configuration file path
+        #[arg(short, long)]
+        config: Option<String>,
+    },
+}
+
 struct ZWatch {
     config: Config,
-    data_sources: Vec<Box<dyn ZpoolDataSource>>,
+    sources: Vec<Box<dyn ZpoolDataSource>>,
     notifiers: Vec<Box<dyn Notifier>>,
 }
 
@@ -48,7 +78,7 @@ impl ZWatch {
 
         Ok(Self {
             config,
-            data_sources,
+            sources: data_sources,
             notifiers,
         })
     }
@@ -139,53 +169,63 @@ impl ZWatch {
     }
 
     async fn check_and_notify(&self) -> Result<()> {
-        for source in &self.data_sources {
-            let source_name = source.source_name();
+        for source in &self.sources {
+            self.check_source(source.as_ref()).await;
+        }
+        Ok(())
+    }
 
-            info!("Checking source: {}", source_name);
+    async fn check_source(&self, source: &dyn ZpoolDataSource) {
+        let source_name = source.name();
+        info!("Checking source: {}", source_name);
 
-            match source.fetch_status().await {
-                Ok(json_data) => match HealthChecker::check(&json_data) {
-                    Ok(reports) => {
-                        for report in reports {
-                            if !report.is_healthy {
-                                warn!(
-                                    "Pool '{}' from source '{}' is unhealthy: {}",
-                                    report.pool_name, source_name, report.message
-                                );
-
-                                self.send_notifications(&report).await;
-                            } else {
-                                info!(
-                                    "Pool '{}' from source '{}' is healthy",
-                                    report.pool_name, source_name
-                                );
-
-                                if !self.config.settings.notify_on_error_only {
-                                    self.send_notifications(&report).await;
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to check health for source '{}': {}", source_name, e);
-                    }
-                },
-                Err(e) => {
-                    error!(
-                        "Failed to fetch status from source '{}': {}",
-                        source_name, e
-                    );
-                }
+        let json_data = match source.fetch().await {
+            Ok(data) => data,
+            Err(e) => {
+                error!(
+                    "Failed to fetch status from source '{}': {}",
+                    source_name, e
+                );
+                return;
             }
+        };
+
+        let reports = match HealthChecker::check(&json_data) {
+            Ok(reports) => reports,
+            Err(e) => {
+                error!("Failed to check health for source '{}': {}", source_name, e);
+                return;
+            }
+        };
+
+        for report in reports {
+            self.process_health_report(&report, &source_name).await;
+        }
+    }
+
+    async fn process_health_report(&self, report: &health::HealthReport, source_name: &str) {
+        let should_notify = !report.is_healthy || !self.config.settings.notify_on_error_only;
+
+        if !report.is_healthy {
+            warn!(
+                "Pool '{}' from source '{}' is unhealthy: {}",
+                report.pool_name, source_name, report.message
+            );
+        } else {
+            info!(
+                "Pool '{}' from source '{}' is healthy",
+                report.pool_name, source_name
+            );
         }
 
-        Ok(())
+        if should_notify {
+            self.send_notifications(report).await;
+        }
     }
 
     async fn send_notifications(&self, report: &health::HealthReport) {
         for notifier in &self.notifiers {
-            let notifier_name = notifier.notifier_name();
+            let notifier_name = notifier.name();
 
             match notifier.notify(report).await {
                 Ok(_) => {
@@ -203,7 +243,7 @@ impl ZWatch {
 
         info!(
             "Starting ZWatch with {} data source(s) and {} notifier(s)",
-            self.data_sources.len(),
+            self.sources.len(),
             self.notifiers.len()
         );
         info!(
@@ -224,51 +264,48 @@ impl ZWatch {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
+    init_logging();
+
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Init { output }) => handle_init(&output),
+        Some(Commands::Check { config }) => {
+            let config_path = config.or(cli.config);
+            handle_check(config_path).await
+        }
+        None => {
+            // Default: run continuous monitoring
+            handle_run(cli.config).await
+        }
+    }
+}
+
+fn init_logging() {
     tracing_subscriber::fmt()
         .with_target(false)
         .with_thread_ids(false)
         .with_line_number(true)
         .init();
+}
 
-    // Parse command line arguments
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() > 1 {
-        match args[1].as_str() {
-            "init" => {
-                let config = Config::example();
-                let path = "zwatch.toml";
-                config.save(path)?;
-                println!("Example configuration saved to {}", path);
-                return Ok(());
-            }
-            "check" => {
-                // Single check mode
-                let config = load_config(args.get(2))?;
-                let watcher = ZWatch::new(config)?;
-                watcher.check_and_notify().await?;
-                return Ok(());
-            }
-            path if path.ends_with(".toml") => {
-                // Run with specific config file
-                let config = Config::from_file(path)?;
-                let watcher = ZWatch::new(config)?;
-                watcher.run().await?;
-            }
-            _ => {
-                print_usage();
-                return Ok(());
-            }
-        }
-    } else {
-        // Try to load default config
-        let config = load_config(None)?;
-        let watcher = ZWatch::new(config)?;
-        watcher.run().await?;
-    }
-
+fn handle_init(output: &str) -> Result<()> {
+    let config = Config::example();
+    config.save(output)?;
+    println!("Example configuration saved to {}", output);
     Ok(())
+}
+
+async fn handle_check(config_path: Option<String>) -> Result<()> {
+    let config = load_config(config_path.as_ref())?;
+    let watcher = ZWatch::new(config)?;
+    watcher.check_and_notify().await
+}
+
+async fn handle_run(config_path: Option<String>) -> Result<()> {
+    let config = load_config(config_path.as_ref())?;
+    let watcher = ZWatch::new(config)?;
+    watcher.run().await
 }
 
 fn load_config(path: Option<&String>) -> Result<Config> {
@@ -280,14 +317,4 @@ fn load_config(path: Option<&String>) -> Result<Config> {
         info!("No configuration file found, using defaults");
         Ok(Config::default())
     }
-}
-
-fn print_usage() {
-    println!("ZWatch - ZFS Pool Monitoring System");
-    println!();
-    println!("Usage:");
-    println!("  zwatch                  # Run with default config (zwatch.toml)");
-    println!("  zwatch <config.toml>    # Run with specified config file");
-    println!("  zwatch init             # Generate example configuration");
-    println!("  zwatch check [config]   # Run single check (no loop)");
 }

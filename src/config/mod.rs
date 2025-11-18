@@ -67,6 +67,7 @@ pub enum DataSourceConfig {
         #[serde(default = "default_args")]
         args: Vec<String>,
     },
+    #[allow(clippy::upper_case_acronyms)]
     SSH {
         name: String,
         host: String,

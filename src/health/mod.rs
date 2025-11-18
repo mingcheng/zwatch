@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:53:45
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 15:07:20
+ * Last Modified: 2025-11-18 23:22:18
  */
 
 mod checker;
@@ -18,3 +18,6 @@ mod types;
 
 pub use checker::HealthChecker;
 pub use report::HealthReport;
+
+#[cfg(test)]
+pub use report::DeviceError;

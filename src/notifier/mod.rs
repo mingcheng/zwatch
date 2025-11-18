@@ -32,5 +32,5 @@ pub trait Notifier: Send + Sync {
     async fn notify(&self, report: &HealthReport) -> anyhow::Result<()>;
 
     /// Get the name of this notifier
-    fn notifier_name(&self) -> String;
+    fn name(&self) -> String;
 }

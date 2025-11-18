@@ -12,13 +12,15 @@
  * Last Modified: 2025-11-18 12:24:03
  */
 
-use anyhow::Result;
-use async_trait::async_trait;
-use reqwest::Client;
-use std::collections::HashMap;
-
 use crate::health::HealthReport;
 use crate::notifier::Notifier;
+use anyhow::Result;
+use async_trait::async_trait;
+use reqwest::{Client, ClientBuilder, Proxy};
+use std::env;
+
+use teloxide::{prelude::Requester, Bot};
+use tracing::trace;
 
 /// Telegram Bot API notifier
 #[derive(Clone)]
@@ -30,10 +32,21 @@ pub struct TelegramNotifier {
 
 impl TelegramNotifier {
     pub fn new(bot_token: String, chat_id: String) -> Self {
+        let client = env::var("ALL_PROXY")
+            .ok()
+            .and_then(|proxy| {
+                trace!("Using HTTP proxy for Telegram notifier: {}", proxy);
+                ClientBuilder::new()
+                    .proxy(Proxy::all(proxy).ok()?)
+                    .build()
+                    .ok()
+            })
+            .unwrap_or_default();
+
         Self {
             bot_token,
             chat_id,
-            client: Client::new(),
+            client,
         }
     }
 }
@@ -41,24 +54,51 @@ impl TelegramNotifier {
 #[async_trait]
 impl Notifier for TelegramNotifier {
     async fn notify(&self, report: &HealthReport) -> Result<()> {
-        let url = format!("https://api.telegram.org/bot{}/sendMessage", self.bot_token);
-
-        let mut params = HashMap::new();
-        params.insert("chat_id", self.chat_id.clone());
-        params.insert("text", report.to_alert_message());
-        params.insert("parse_mode", "HTML".to_string());
-
-        let response = self.client.post(&url).json(&params).send().await?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            anyhow::bail!("Telegram API error: {}", error_text);
-        }
+        let bot = Bot::with_client(self.bot_token.to_string(), self.client.clone());
+        bot.send_message(self.chat_id.to_string(), report.to_alert_message())
+            .await?;
 
         Ok(())
     }
 
-    fn notifier_name(&self) -> String {
+    fn name(&self) -> String {
         format!("telegram:chat_{}", self.chat_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::health::{DeviceError, HealthReport};
+    use crate::notifier::Notifier;
+
+    #[tokio::test]
+    async fn test_telegram_notifier() {
+        let bot_token = std::env::var("TELEGRAM_BOT_TOKEN").unwrap_or("".to_string());
+        let chat_id = std::env::var("TELEGRAM_CHAT_ID").unwrap_or("".to_string());
+        if bot_token.is_empty() || chat_id.is_empty() {
+            return;
+        }
+
+        let notifier = super::TelegramNotifier::new(bot_token.to_string(), chat_id.to_string());
+
+        notifier
+            .notify(&HealthReport {
+                pool_name: "tank".to_string(),
+                pool_state: "DEGRADED".to_string(),
+                is_healthy: false,
+                pool_error_count: 5,
+                scan_errors: 1,
+                device_errors: vec![DeviceError {
+                    device_name: "sda".to_string(),
+                    device_path: Some("/dev/sda".to_string()),
+                    state: "DEGRADED".to_string(),
+                    read_errors: 10,
+                    write_errors: 5,
+                    checksum_errors: 2,
+                }],
+                message: "Test alert message".to_string(),
+            })
+            .await
+            .unwrap();
     }
 }

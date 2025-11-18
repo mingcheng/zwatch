@@ -76,7 +76,7 @@ impl Notifier for WebhookNotifier {
         Ok(())
     }
 
-    fn notifier_name(&self) -> String {
+    fn name(&self) -> String {
         format!("webhook:{}", self.url)
     }
 }
