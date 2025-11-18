@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:51:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-17 18:26:39
+ * Last Modified: 2025-11-18 23:17:12
  */
 
 use crate::source::ZpoolDataSource;
@@ -75,7 +75,7 @@ impl SSHDataSource {
 
 #[async_trait]
 impl ZpoolDataSource for SSHDataSource {
-    async fn fetch_status(&self) -> Result<String> {
+    async fn fetch(&self) -> Result<String> {
         let session = self.connect().await?;
 
         let output = session
@@ -97,7 +97,7 @@ impl ZpoolDataSource for SSHDataSource {
         Ok(json_output)
     }
 
-    fn source_name(&self) -> String {
+    fn name(&self) -> String {
         format!(
             "ssh:{}@{}:{} {}",
             self.user,
@@ -105,5 +105,24 @@ impl ZpoolDataSource for SSHDataSource {
             self.command,
             self.args.join(" ")
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::source::{SSHDataSource, ZpoolDataSource};
+
+    #[tokio::test]
+    async fn test_ssh_data_source() {
+        let host = std::env::var("TEST_SSH_HOST").unwrap_or("".to_string());
+        let user = std::env::var("TEST_SSH_USER").unwrap_or("".to_string());
+        if user.is_empty() || host.is_empty() {
+            return;
+        }
+
+        let ssh_data_source = SSHDataSource::new(host, user).with_port(22);
+        let result = ssh_data_source.fetch().await.unwrap();
+
+        assert!(!result.is_empty());
     }
 }
