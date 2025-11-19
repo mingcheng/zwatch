@@ -5,11 +5,8 @@ LABEL maintainer="mingcheng <mingcheng@apache.org>"
 # Install build dependencies required for compilation
 RUN apk add --no-cache \
     build-base \
-    git \
     musl-dev \
-    openssl-dev \
-    pkgconfig \
-    perl
+    pkgconfig
 
 # Ensure we're using the latest stable Rust toolchain
 RUN rustup default stable && rustup update stable
