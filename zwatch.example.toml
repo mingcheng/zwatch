@@ -1,0 +1,57 @@
+# ZWatch Example Configuration
+
+# Data sources to monitor
+[[data_sources]]
+type = "local"
+name = "localhost"
+command = "zpool"
+args = ["status", "-j"]
+
+[[data_sources]]
+type = "ssh"
+name = "remote-nas"
+host = "192.168.1.100"
+user = "root"
+port = 22
+keyfile = "/home/user/.ssh/id_rsa"
+command = "zpool"
+args = ["status", "-j"]
+
+[[data_sources]]
+type = "file"
+name = "test-data"
+path = "/path/to/zpool_status.json"
+
+# Notification targets
+[[notifiers]]
+type = "console"
+
+[[notifiers]]
+type = "telegram"
+bot_token = "YOUR_BOT_TOKEN"
+chat_id = "YOUR_CHAT_ID"
+
+[[notifiers]]
+type = "webhook"
+url = "https://example.com/webhook"
+
+[notifiers.headers]
+Authorization = "Bearer YOUR_TOKEN"
+Content-Type = "application/json"
+
+[[notifiers]]
+type = "bark"
+server_url = "https://api.day.app"
+device_key = "YOUR_DEVICE_KEY"
+
+[[notifiers]]
+type = "mq"
+amqp_url = "amqp://guest:guest@localhost:5672"
+exchange = "zfs.alerts"
+routing_key = "pool.status"
+
+# Global settings
+[settings]
+check_interval = 300        # Check every 5 minutes
+notify_on_error_only = true # Only send notifications when there are issues
+verbose = false             # Enable verbose logging
