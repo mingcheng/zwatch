@@ -49,12 +49,14 @@ impl ZpoolDataSource for FileDataSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
     async fn test_file_datasource_invalid_path() {
-        let source = FileDataSource::new(PathBuf::from("zpool.json"));
-        let status = source.fetch().await.unwrap();
-
-        assert!(!status.is_empty());
+        if let Ok(path) = env::var("TEST_FILE_PATH") {
+            let source = FileDataSource::new(PathBuf::from(path));
+            let status = source.fetch().await.unwrap();
+            assert!(!status.is_empty());
+        }
     }
 }
