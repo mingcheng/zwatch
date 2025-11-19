@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use reqwest::{Client, ClientBuilder, Proxy};
 use std::env;
 
-use teloxide::{prelude::Requester, Bot};
+use teloxide::{Bot, prelude::Requester};
 use tracing::trace;
 
 /// Telegram Bot API notifier
