@@ -48,12 +48,9 @@ ENV TZ=${TZ}
 RUN apk add --no-cache \
     tzdata \
     curl \
-    ca-certificates \
-    openssh-client && \
+    ca-certificates && \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
-    echo $TZ > /etc/timezone && \
-    # Clean up apk cache to reduce image size
-    rm -rf /var/cache/apk/*
+    echo $TZ > /etc/timezone
 
 # Copy the compiled binary from builder stage
 COPY --from=builder /bin/zwatch /bin/zwatch
