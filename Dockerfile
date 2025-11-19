@@ -44,6 +44,7 @@ ENV TZ=${TZ}
 # Install only runtime dependencies
 RUN apk add --no-cache \
     tzdata \
+    openssh \
     curl \
     ca-certificates && \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
