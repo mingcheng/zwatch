@@ -1,0 +1,13 @@
+# Reduce build context size
+.git
+.gitignore
+.target
+/target
+.vscode
+.idea
+**/*.log
+**/.DS_Store
+
+# Tests and local files not needed for image build
+/README-local.md
+/examples

@@ -1,8 +1,7 @@
-/target
-/Cargo.lock
+/target/
+/.idea/
+/.vscode/
+/.zwatch.toml
 **/*.rs.bk
 *.pdb
-.idea/
-.vscode/
 .DS_Store
-/.zwatch.toml
