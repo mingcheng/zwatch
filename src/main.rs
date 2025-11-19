@@ -240,13 +240,52 @@ impl ZWatch {
         );
 
         loop {
-            if let Err(e) = self.check_and_notify().await {
-                error!("Error during check cycle: {}", e);
+            tokio::select! {
+                _ = shutdown_signal() => {
+                    info!("Received shutdown signal, exiting gracefully...");
+                    break;
+                }
+                _ = tokio::time::sleep(interval) => {
+                    if let Err(e) = self.check_and_notify().await {
+                        error!("Error during check cycle: {}", e);
+                    }
+                }
             }
-
-            info!("Sleeping for {} seconds...", interval.as_secs());
-            tokio::time::sleep(interval).await;
         }
+
+        info!("ZWatch shutdown complete");
+        Ok(())
+    }
+}
+
+/// Wait for a shutdown signal (SIGTERM, SIGINT, or Ctrl+C)
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            info!("Received SIGINT (Ctrl+C)");
+        },
+        _ = terminate => {
+            info!("Received SIGTERM");
+        },
     }
 }
 
