@@ -17,6 +17,14 @@ use anyhow::{Context, Result};
 use super::report::{DeviceError, HealthReport};
 use super::types::{Pool, Vdev, VdevRoot, ZpoolStatus};
 
+/// Helper function to safely parse string values
+fn safe_parse<T>(s: &str) -> T
+where
+    T: std::str::FromStr + Default,
+{
+    s.parse().unwrap_or_default()
+}
+
 pub struct HealthChecker;
 
 impl HealthChecker {
@@ -35,11 +43,11 @@ impl HealthChecker {
     }
 
     fn check_pool(pool: &Pool) -> HealthReport {
-        let pool_error_count = pool.error_count.parse::<u64>().unwrap_or(0);
+        let pool_error_count = safe_parse::<u64>(&pool.error_count);
         let scan_errors = pool
             .scan_stats
             .as_ref()
-            .and_then(|s| s.errors.parse::<u64>().ok())
+            .map(|s| safe_parse::<u64>(&s.errors))
             .unwrap_or(0);
 
         let device_errors = Self::collect_device_errors(&pool.vdevs);
@@ -92,9 +100,9 @@ impl HealthChecker {
     }
 
     fn check_vdev(vdev: &Vdev, errors: &mut Vec<DeviceError>) {
-        let read_errors = vdev.read_errors.parse::<u64>().unwrap_or(0);
-        let write_errors = vdev.write_errors.parse::<u64>().unwrap_or(0);
-        let checksum_errors = vdev.checksum_errors.parse::<u64>().unwrap_or(0);
+        let read_errors = safe_parse::<u64>(&vdev.read_errors);
+        let write_errors = safe_parse::<u64>(&vdev.write_errors);
+        let checksum_errors = safe_parse::<u64>(&vdev.checksum_errors);
 
         let has_errors = read_errors > 0
             || write_errors > 0

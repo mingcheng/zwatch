@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:34:23
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-19 10:23:03
+ * Last Modified: 2025-11-19 19:19:17
  */
 
 /*!
@@ -72,17 +72,17 @@ struct ZWatch {
 
 impl ZWatch {
     fn new(config: Config) -> Result<Self> {
-        let data_sources = Self::build_data_sources(&config.sources)?;
+        let sources = Self::build_sources(&config.sources)?;
         let notifiers = Self::build_notifiers(&config.notifiers)?;
 
         Ok(Self {
             config,
-            sources: data_sources,
+            sources,
             notifiers,
         })
     }
 
-    fn build_data_sources(configs: &[DataSourceConfig]) -> Result<Vec<Box<dyn ZpoolDataSource>>> {
+    fn build_sources(configs: &[DataSourceConfig]) -> Result<Vec<Box<dyn ZpoolDataSource>>> {
         let mut sources: Vec<Box<dyn ZpoolDataSource>> = Vec::new();
 
         for config in configs {
@@ -171,7 +171,7 @@ impl ZWatch {
             Ok(data) => data,
             Err(e) => {
                 error!(
-                    "Failed to fetch status from source '{}': {}",
+                    "Failed to fetch status from source '{}': {:?}",
                     source_name, e
                 );
                 return;
@@ -181,7 +181,7 @@ impl ZWatch {
         let reports = match HealthChecker::check(&json_data) {
             Ok(reports) => reports,
             Err(e) => {
-                error!("Failed to check health for source '{}': {}", source_name, e);
+                error!("Failed to check health for source '{}': {:?}", source_name, e);
                 return;
             }
         };
@@ -220,7 +220,7 @@ impl ZWatch {
                     info!("Successfully sent notification via {}", notifier_name);
                 }
                 Err(e) => {
-                    error!("Failed to send notification via {}: {}", notifier_name, e);
+                    error!("Failed to send notification via {}: {:?}", notifier_name, e);
                 }
             }
         }
@@ -239,6 +239,11 @@ impl ZWatch {
             self.config.settings.check_interval
         );
 
+        // Perform initial check immediately
+        if let Err(e) = self.check_and_notify().await {
+            error!("Error during initial check cycle: {:?}", e);
+        }
+
         loop {
             tokio::select! {
                 _ = shutdown_signal() => {
@@ -247,7 +252,7 @@ impl ZWatch {
                 }
                 _ = tokio::time::sleep(interval) => {
                     if let Err(e) = self.check_and_notify().await {
-                        error!("Error during check cycle: {}", e);
+                        error!("Error during check cycle: {:?}", e);
                     }
                 }
             }

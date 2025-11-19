@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:53:41
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 15:07:16
+ * Last Modified: 2025-11-19 23:06:03
  */
 
 use std::fmt;
@@ -57,7 +57,7 @@ impl HealthReport {
                 msg.push_str("\nDevice Errors:\n");
                 for dev in &self.device_errors {
                     msg.push_str(&format!(
-                        "- {}: state={}, read={}, write={}, checksum={}\n",
+                        "- {} [{}]: R:{} W:{} C:{}\n",
                         dev.device_name,
                         dev.state,
                         dev.read_errors,

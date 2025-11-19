@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:51:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 23:17:12
+ * Last Modified: 2025-11-19 23:06:50
  */
 
 use crate::source::ZpoolDataSource;
@@ -76,23 +76,38 @@ impl SSHDataSource {
 #[async_trait]
 impl ZpoolDataSource for SSHDataSource {
     async fn fetch(&self) -> Result<String> {
-        let session = self.connect().await?;
+        let session = self.connect().await.map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to establish SSH connection to {}@{}: {:?}",
+                self.user,
+                self.host,
+                e
+            )
+        })?;
 
         let output = session
             .command(&self.command)
             .args(&self.args)
             .output()
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to execute SSH command: {:?}", e))?;
+
+        // Close the session properly
+        if let Err(e) = session.close().await {
+            tracing::warn!("Failed to close SSH session: {:?}", e);
+        }
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("SSH command failed: {}", stderr);
         }
 
-        let json_output = String::from_utf8(output.stdout)?;
+        let json_output = String::from_utf8(output.stdout)
+            .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in command output: {:?}", e))?;
 
         // Validate JSON
-        serde_json::from_str::<Value>(&json_output)?;
+        serde_json::from_str::<Value>(&json_output)
+            .map_err(|e| anyhow::anyhow!("Invalid JSON output: {:?}", e))?;
 
         Ok(json_output)
     }

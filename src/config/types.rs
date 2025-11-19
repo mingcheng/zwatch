@@ -12,9 +12,99 @@
  * Last Modified: 2025-11-17 17:43:39
  */
 
-use crate::config::{DataSourceConfig, NotifierConfig, Settings};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Settings {
+    /// Check interval in seconds
+    #[serde(default = "default_check_interval")]
+    pub check_interval: u64,
+
+    /// Only notify on errors (don't notify when healthy)
+    #[serde(default = "default_notify_on_error_only")]
+    pub notify_on_error_only: bool,
+
+    /// Enable verbose logging
+    #[serde(default)]
+    pub verbose: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            check_interval: default_check_interval(),
+            notify_on_error_only: default_notify_on_error_only(),
+            verbose: false,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum NotifierConfig {
+    Telegram {
+        bot_token: String,
+        chat_id: String,
+    },
+    Webhook {
+        url: String,
+        #[serde(default)]
+        headers: HashMap<String, String>,
+    },
+    Bark {
+        server_url: String,
+        device_key: String,
+    },
+    Console,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum DataSourceConfig {
+    File {
+        name: String,
+        path: PathBuf,
+    },
+    Local {
+        name: String,
+        #[serde(default = "default_command")]
+        command: String,
+        #[serde(default = "default_args")]
+        args: Vec<String>,
+    },
+    #[allow(clippy::upper_case_acronyms)]
+    SSH {
+        name: String,
+        host: String,
+        user: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        port: Option<u16>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        keyfile: Option<String>,
+        #[serde(default = "default_command")]
+        command: String,
+        #[serde(default = "default_args")]
+        args: Vec<String>,
+    },
+}
+
+fn default_command() -> String {
+    "zpool".to_string()
+}
+
+fn default_args() -> Vec<String> {
+    vec!["status".to_string(), "-j".to_string()]
+}
+
+fn default_check_interval() -> u64 {
+    300 // 5 minutes
+}
+
+fn default_notify_on_error_only() -> bool {
+    true
+}
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
@@ -37,15 +127,11 @@ impl Default for Config {
         Self {
             sources: vec![DataSourceConfig::Local {
                 name: "localhost".to_string(),
-                command: "zpool".to_string(),
-                args: vec!["status".to_string(), "-j".to_string()],
+                command: default_command(),
+                args: default_args(),
             }],
             notifiers: vec![NotifierConfig::Console],
-            settings: Settings {
-                check_interval: 300,
-                notify_on_error_only: true,
-                verbose: false,
-            },
+            settings: Settings::default(),
         }
     }
 }
@@ -55,18 +141,6 @@ impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
-        Ok(config)
-    }
-
-    /// Load configuration from environment variables and files
-    #[allow(dead_code)]
-    pub fn load() -> anyhow::Result<Self> {
-        let config = config::Config::builder()
-            .add_source(config::File::with_name("zwatch").required(false))
-            .add_source(config::Environment::with_prefix("ZWATCH"))
-            .build()?;
-
-        let config: Config = config.try_deserialize()?;
         Ok(config)
     }
 
@@ -83,8 +157,8 @@ impl Config {
             sources: vec![
                 DataSourceConfig::Local {
                     name: "localhost".to_string(),
-                    command: "zpool".to_string(),
-                    args: vec!["status".to_string(), "-j".to_string()],
+                    command: default_command(),
+                    args: default_args(),
                 },
                 DataSourceConfig::SSH {
                     name: "remote-server".to_string(),
@@ -92,8 +166,8 @@ impl Config {
                     user: "root".to_string(),
                     port: Some(22),
                     keyfile: Some("/home/user/.ssh/id_rsa".to_string()),
-                    command: "zpool".to_string(),
-                    args: vec!["status".to_string(), "-j".to_string()],
+                    command: default_command(),
+                    args: default_args(),
                 },
                 DataSourceConfig::File {
                     name: "test-file".to_string(),
@@ -119,11 +193,7 @@ impl Config {
                     device_key: "YOUR_DEVICE_KEY".to_string(),
                 },
             ],
-            settings: Settings {
-                check_interval: 300,
-                notify_on_error_only: true,
-                verbose: false,
-            },
+            settings: Settings::default(),
         }
     }
 }

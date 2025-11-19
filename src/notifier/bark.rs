@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:52:13
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 12:23:47
+ * Last Modified: 2025-11-19 23:03:08
  */
 
 use anyhow::Result;
@@ -41,19 +41,17 @@ impl BarkNotifier {
 impl Notifier for BarkNotifier {
     async fn notify(&self, report: &HealthReport) -> Result<()> {
         let title = format!("ZFS Alert: {}", report.pool_name);
+        let message = report.to_alert_message();
+
         let url = format!(
-            "{}/{}/{}",
+            "{}/{}/{}/{}",
             self.server_url.trim_end_matches('/'),
             self.device_key,
-            urlencoding::encode(&title)
+            urlencoding::encode(&title),
+            urlencoding::encode(&message)
         );
 
-        let message = report.to_alert_message();
-        let body = urlencoding::encode(&message);
-
-        let full_url = format!("{}/{}", url, body);
-
-        let response = self.client.get(&full_url).send().await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
             let error_text = response.text().await?;
