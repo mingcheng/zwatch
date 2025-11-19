@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:51:09
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-17 18:26:29
+ * Last Modified: 2025-11-19 10:19:54
  */
 
 use anyhow::Result;
@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use tokio::process::Command;
 
-use super::trait_def::ZpoolDataSource;
+use crate::source::ZpoolDataSource;
 
 /// Fetch zpool status by executing local command
 pub struct LocalCommandDataSource {
@@ -42,7 +42,7 @@ impl LocalCommandDataSource {
 
 #[async_trait]
 impl ZpoolDataSource for LocalCommandDataSource {
-    async fn fetch_status(&self) -> Result<String> {
+    async fn fetch(&self) -> Result<String> {
         let output = Command::new(&self.command)
             .args(&self.args)
             .output()
@@ -61,7 +61,7 @@ impl ZpoolDataSource for LocalCommandDataSource {
         Ok(json_output)
     }
 
-    fn source_name(&self) -> String {
+    fn name(&self) -> String {
         format!("local:{} {}", self.command, self.args.join(" "))
     }
 }
@@ -73,6 +73,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_command() {
         let source = LocalCommandDataSource::new("nonexistent_command_xyz".to_string(), vec![]);
-        assert!(source.fetch_status().await.is_err());
+        assert!(source.fetch().await.is_err());
     }
 }

@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:34:23
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-18 18:29:52
+ * Last Modified: 2025-11-19 10:23:03
  */
 
 /*!
@@ -32,7 +32,6 @@ use tracing::{error, info, warn};
 use config::{Config, DataSourceConfig, NotifierConfig};
 use health::HealthChecker;
 use notifier::{BarkNotifier, ConsoleNotifier, Notifier, TelegramNotifier, WebhookNotifier};
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 use source::LocalCommandDataSource;
 use source::{FileDataSource, SSHDataSource, ZpoolDataSource};
 
@@ -92,25 +91,14 @@ impl ZWatch {
                     sources.push(Box::new(FileDataSource::new(path.clone())));
                 }
                 DataSourceConfig::Local {
-                    name,
+                    name: _,
                     command,
                     args,
                 } => {
-                    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-                    {
-                        sources.push(Box::new(LocalCommandDataSource::new(
-                            command.clone(),
-                            args.clone(),
-                        )));
-                    }
-                    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-                    {
-                        let _ = (command, args); // Silence unused warnings
-                        anyhow::bail!(
-                            "Local command data source '{}' is only supported on Linux and FreeBSD",
-                            name
-                        );
-                    }
+                    sources.push(Box::new(LocalCommandDataSource::new(
+                        command.clone(),
+                        args.clone(),
+                    )));
                 }
                 DataSourceConfig::SSH {
                     name: _,

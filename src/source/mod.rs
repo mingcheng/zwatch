@@ -9,19 +9,17 @@
  * File Created: 2025-11-17 15:38:34
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-17 18:26:16
+ * Last Modified: 2025-11-19 10:18:58
  */
 
 mod file;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod local;
 mod ssh;
 
 use async_trait::async_trait;
 pub use file::FileDataSource;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub use local::LocalCommandDataSource;
 
 pub use ssh::SSHDataSource;
