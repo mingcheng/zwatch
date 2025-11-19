@@ -1,6 +1,6 @@
 [package]
 name = "zwatch"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 authors = ["mingcheng <mingcheng@apache.org>"]
 description = "A versatile monitoring and alerting tool for zfs storage pool."
@@ -20,8 +20,6 @@ reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
 ] }
-lapin = "3.7" # For RabbitMQ/AMQP support
-config = "0.15"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = "0.4"
@@ -32,3 +30,9 @@ teloxide = { version = "0.17", default-features = false, features = [
     "macros",
     "rustls",
 ] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

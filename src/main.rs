@@ -181,7 +181,10 @@ impl ZWatch {
         let reports = match HealthChecker::check(&json_data) {
             Ok(reports) => reports,
             Err(e) => {
-                error!("Failed to check health for source '{}': {:?}", source_name, e);
+                error!(
+                    "Failed to check health for source '{}': {:?}",
+                    source_name, e
+                );
                 return;
             }
         };
