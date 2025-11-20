@@ -16,7 +16,7 @@ use crate::health::HealthReport;
 use crate::notifier::Notifier;
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{Client, ClientBuilder, Proxy};
+use reqwest::{ClientBuilder, Proxy};
 use std::env;
 
 use teloxide::{Bot, prelude::Requester};
@@ -25,9 +25,8 @@ use tracing::trace;
 /// Telegram Bot API notifier
 #[derive(Clone)]
 pub struct TelegramNotifier {
-    pub bot_token: String,
+    bot: Bot,
     pub chat_id: String,
-    client: Client,
 }
 
 impl TelegramNotifier {
@@ -37,25 +36,29 @@ impl TelegramNotifier {
             .and_then(|proxy| {
                 trace!("Using HTTP proxy for Telegram notifier: {}", proxy);
                 ClientBuilder::new()
+                    .timeout(std::time::Duration::from_secs(30))
                     .proxy(Proxy::all(proxy).ok()?)
                     .build()
                     .ok()
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                ClientBuilder::new()
+                    .timeout(std::time::Duration::from_secs(30))
+                    .build()
+                    .unwrap_or_default()
+            });
 
-        Self {
-            bot_token,
-            chat_id,
-            client,
-        }
+        let bot = Bot::with_client(bot_token, client);
+
+        Self { bot, chat_id }
     }
 }
 
 #[async_trait]
 impl Notifier for TelegramNotifier {
     async fn notify(&self, report: &HealthReport) -> Result<()> {
-        let bot = Bot::with_client(self.bot_token.to_string(), self.client.clone());
-        bot.send_message(self.chat_id.to_string(), report.to_alert_message())
+        self.bot
+            .send_message(self.chat_id.clone(), report.to_alert_message())
             .await?;
 
         Ok(())

@@ -29,10 +29,16 @@ pub struct BarkNotifier {
 
 impl BarkNotifier {
     pub fn new(server_url: String, device_key: String) -> Self {
+        // Create client with reasonable timeout to prevent hanging
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
             server_url,
             device_key,
-            client: Client::new(),
+            client,
         }
     }
 }

@@ -48,7 +48,10 @@ impl HealthReport {
         if self.is_healthy {
             format!("✅ ZFS Pool '{}' is ONLINE and healthy", self.pool_name)
         } else {
-            let mut msg = format!("⚠️ ZFS Pool '{}' has issues!\n", self.pool_name);
+            // Pre-allocate with estimated capacity to reduce allocations
+            let mut msg = String::with_capacity(256);
+            
+            msg.push_str(&format!("⚠️ ZFS Pool '{}' has issues!\n", self.pool_name));
             msg.push_str(&format!("State: {}\n", self.pool_state));
             msg.push_str(&format!("Pool Errors: {}\n", self.pool_error_count));
             msg.push_str(&format!("Scan Errors: {}\n", self.scan_errors));

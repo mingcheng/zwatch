@@ -30,10 +30,16 @@ pub struct WebhookNotifier {
 
 impl WebhookNotifier {
     pub fn new(url: String) -> Self {
+        // Create client with reasonable timeout to prevent hanging
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
             url,
             headers: HashMap::new(),
-            client: Client::new(),
+            client,
         }
     }
 

@@ -16,7 +16,6 @@ use crate::source::ZpoolDataSource;
 use anyhow::Result;
 use async_trait::async_trait;
 use openssh::{Session, SessionBuilder};
-use serde_json::Value;
 
 /// Fetch zpool status via SSH from a remote host
 pub struct SSHDataSource {
@@ -105,10 +104,7 @@ impl ZpoolDataSource for SSHDataSource {
         let json_output = String::from_utf8(output.stdout)
             .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in command output: {:?}", e))?;
 
-        // Validate JSON
-        serde_json::from_str::<Value>(&json_output)
-            .map_err(|e| anyhow::anyhow!("Invalid JSON output: {:?}", e))?;
-
+        // JSON validation is performed by HealthChecker, no need to duplicate here
         Ok(json_output)
     }
 

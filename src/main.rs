@@ -26,6 +26,7 @@ mod source;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use futures::future;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -157,9 +158,14 @@ impl ZWatch {
     }
 
     async fn check_and_notify(&self) -> Result<()> {
-        for source in &self.sources {
-            self.check_source(source.as_ref()).await;
-        }
+        // Process all sources concurrently for better performance
+        let tasks: Vec<_> = self
+            .sources
+            .iter()
+            .map(|source| self.check_source(source.as_ref()))
+            .collect();
+
+        future::join_all(tasks).await;
         Ok(())
     }
 
@@ -215,18 +221,27 @@ impl ZWatch {
     }
 
     async fn send_notifications(&self, report: &health::HealthReport) {
-        for notifier in &self.notifiers {
-            let notifier_name = notifier.name();
+        // Send all notifications concurrently for better performance
+        let tasks: Vec<_> = self
+            .notifiers
+            .iter()
+            .map(|notifier| {
+                let notifier_ref = notifier.as_ref();
+                async move {
+                    let notifier_name = notifier_ref.name();
+                    match notifier_ref.notify(report).await {
+                        Ok(_) => {
+                            info!("Successfully sent notification via {}", notifier_name);
+                        }
+                        Err(e) => {
+                            error!("Failed to send notification via {}: {:?}", notifier_name, e);
+                        }
+                    }
+                }
+            })
+            .collect();
 
-            match notifier.notify(report).await {
-                Ok(_) => {
-                    info!("Successfully sent notification via {}", notifier_name);
-                }
-                Err(e) => {
-                    error!("Failed to send notification via {}: {:?}", notifier_name, e);
-                }
-            }
-        }
+        future::join_all(tasks).await;
     }
 
     async fn run(&self) -> Result<()> {
