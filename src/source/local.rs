@@ -14,7 +14,6 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::Value;
 use tokio::process::Command;
 
 use crate::source::ZpoolDataSource;
@@ -55,9 +54,7 @@ impl ZpoolDataSource for LocalCommandDataSource {
 
         let json_output = String::from_utf8(output.stdout)?;
 
-        // Validate JSON
-        serde_json::from_str::<Value>(&json_output)?;
-
+        // JSON validation is performed by HealthChecker, no need to duplicate here
         Ok(json_output)
     }
 

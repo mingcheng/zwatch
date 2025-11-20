@@ -15,7 +15,6 @@
 use crate::source::ZpoolDataSource;
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::Value;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -35,9 +34,7 @@ impl ZpoolDataSource for FileDataSource {
     async fn fetch(&self) -> Result<String> {
         let content = fs::read_to_string(&self.file_path).await?;
 
-        // Validate it's valid JSON
-        serde_json::from_str::<Value>(&content)?;
-
+        // JSON validation is performed by HealthChecker, no need to duplicate here
         Ok(content)
     }
 
