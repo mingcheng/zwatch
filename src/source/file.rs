@@ -33,10 +33,14 @@ impl FileDataSource {
 #[async_trait]
 impl ZpoolDataSource for FileDataSource {
     async fn fetch(&self) -> Result<String> {
-        let content = fs::read_to_string(&self.file_path).await?;
+        let content = fs::read_to_string(&self.file_path).await.map_err(|e| {
+            anyhow::anyhow!("Failed to read file {}: {}", self.file_path.display(), e)
+        })?;
 
         // Validate it's valid JSON
-        serde_json::from_str::<Value>(&content)?;
+        serde_json::from_str::<Value>(&content).map_err(|e| {
+            anyhow::anyhow!("Invalid JSON in file {}: {}", self.file_path.display(), e)
+        })?;
 
         Ok(content)
     }

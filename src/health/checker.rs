@@ -17,6 +17,8 @@ use anyhow::{Context, Result};
 use super::report::{DeviceError, HealthReport};
 use super::types::{Pool, Vdev, VdevRoot, ZpoolStatus};
 
+const ONLINE_STATE: &str = "ONLINE";
+
 /// Helper function to safely parse string values
 fn safe_parse<T>(s: &str) -> T
 where
@@ -52,17 +54,16 @@ impl HealthChecker {
 
         let device_errors = Self::collect_device_errors(&pool.vdevs);
 
-        let is_healthy = pool.state.to_uppercase() == "ONLINE"
-            && pool_error_count == 0
-            && scan_errors == 0
-            && device_errors.is_empty();
+        let is_online = pool.state.eq_ignore_ascii_case(ONLINE_STATE);
+        let is_healthy =
+            is_online && pool_error_count == 0 && scan_errors == 0 && device_errors.is_empty();
 
         let message = if is_healthy {
             "All systems operational".to_string()
         } else {
-            let mut msgs = Vec::new();
+            let mut msgs = Vec::with_capacity(4);
 
-            if pool.state.to_uppercase() != "ONLINE" {
+            if !is_online {
                 msgs.push(format!("Pool state is {}", pool.state));
             }
             if pool_error_count > 0 {
@@ -104,10 +105,8 @@ impl HealthChecker {
         let write_errors = safe_parse::<u64>(&vdev.write_errors);
         let checksum_errors = safe_parse::<u64>(&vdev.checksum_errors);
 
-        let has_errors = read_errors > 0
-            || write_errors > 0
-            || checksum_errors > 0
-            || vdev.state.to_uppercase() != "ONLINE";
+        let is_online = vdev.state.eq_ignore_ascii_case(ONLINE_STATE);
+        let has_errors = !is_online || read_errors > 0 || write_errors > 0 || checksum_errors > 0;
 
         if has_errors {
             errors.push(DeviceError {

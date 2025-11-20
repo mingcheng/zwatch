@@ -48,10 +48,11 @@ impl ZpoolDataSource for LocalCommandDataSource {
             .output()
             .await?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Command failed: {}", stderr);
-        }
+        anyhow::ensure!(
+            output.status.success(),
+            "Command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
 
         let json_output = String::from_utf8(output.stdout)?;
 

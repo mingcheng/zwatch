@@ -9,12 +9,17 @@
  * File Created: 2025-11-17 15:55:16
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-17 17:43:39
+ * Last Modified: 2025-11-20 14:19:54
  */
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+// Default constants
+const DEFAULT_COMMAND: &str = "zpool";
+const DEFAULT_CHECK_INTERVAL: u64 = 300; // 5 minutes
+const DEFAULT_NOTIFY_ON_ERROR_ONLY: bool = true;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -80,7 +85,7 @@ pub enum DataSourceConfig {
         host: String,
         user: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        port: Option<u16>,
+        port: Option<u32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         keyfile: Option<String>,
         #[serde(default = "default_command")]
@@ -91,7 +96,7 @@ pub enum DataSourceConfig {
 }
 
 fn default_command() -> String {
-    "zpool".to_string()
+    DEFAULT_COMMAND.to_string()
 }
 
 fn default_args() -> Vec<String> {
@@ -99,11 +104,11 @@ fn default_args() -> Vec<String> {
 }
 
 fn default_check_interval() -> u64 {
-    300 // 5 minutes
+    DEFAULT_CHECK_INTERVAL
 }
 
 fn default_notify_on_error_only() -> bool {
-    true
+    DEFAULT_NOTIFY_ON_ERROR_ONLY
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]

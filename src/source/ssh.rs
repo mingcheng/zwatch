@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:51:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-19 23:06:50
+ * Last Modified: 2025-11-20 14:28:56
  */
 
 use crate::source::ZpoolDataSource;
@@ -17,12 +17,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use openssh::{Session, SessionBuilder};
 use serde_json::Value;
+use tracing::warn;
+
+const DEFAULT_SSH_PORT: u32 = 22;
 
 /// Fetch zpool status via SSH from a remote host
 pub struct SSHDataSource {
     pub host: String,
     pub user: String,
-    pub port: Option<u16>,
+    pub port: Option<u32>,
     pub keyfile: Option<String>,
     pub command: String,
     pub args: Vec<String>,
@@ -40,7 +43,12 @@ impl SSHDataSource {
         }
     }
 
-    pub fn with_port(mut self, port: u16) -> Self {
+    pub fn with_port(mut self, port: u32) -> Self {
+        if port == 0 || port > 65535 {
+            warn!("Port number must be between 1 and 65535");
+            return self;
+        }
+
         self.port = Some(port);
         self
     }
@@ -59,10 +67,7 @@ impl SSHDataSource {
     async fn connect(&self) -> Result<Session> {
         let mut builder = SessionBuilder::default();
         builder.user(self.user.clone());
-
-        if let Some(port) = self.port {
-            builder.port(port);
-        }
+        builder.port(self.port.unwrap_or(DEFAULT_SSH_PORT));
 
         if let Some(keyfile) = &self.keyfile {
             builder.keyfile(keyfile);
@@ -93,14 +98,13 @@ impl ZpoolDataSource for SSHDataSource {
             .map_err(|e| anyhow::anyhow!("Failed to execute SSH command: {:?}", e))?;
 
         // Close the session properly
-        if let Err(e) = session.close().await {
-            tracing::warn!("Failed to close SSH session: {:?}", e);
-        }
+        session.close().await.ok();
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("SSH command failed: {}", stderr);
-        }
+        anyhow::ensure!(
+            output.status.success(),
+            "SSH command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
 
         let json_output = String::from_utf8(output.stdout)
             .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in command output: {:?}", e))?;
@@ -120,6 +124,13 @@ impl ZpoolDataSource for SSHDataSource {
             self.command,
             self.args.join(" ")
         )
+    }
+}
+
+/// Display implementation for SSHDataSource
+impl std::fmt::Display for SSHDataSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
     }
 }
 

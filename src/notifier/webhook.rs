@@ -68,10 +68,11 @@ impl Notifier for WebhookNotifier {
 
         let response = request.json(&payload).send().await?;
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            anyhow::bail!("Webhook error: {}", error_text);
-        }
+        anyhow::ensure!(
+            response.status().is_success(),
+            "Webhook error: {}",
+            response.text().await?
+        );
 
         Ok(())
     }

@@ -54,8 +54,8 @@ impl TelegramNotifier {
 #[async_trait]
 impl Notifier for TelegramNotifier {
     async fn notify(&self, report: &HealthReport) -> Result<()> {
-        let bot = Bot::with_client(self.bot_token.to_string(), self.client.clone());
-        bot.send_message(self.chat_id.to_string(), report.to_alert_message())
+        let bot = Bot::with_client(&self.bot_token, self.client.clone());
+        bot.send_message(self.chat_id.clone(), report.to_alert_message())
             .await?;
 
         Ok(())

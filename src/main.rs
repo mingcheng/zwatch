@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:34:23
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-19 19:19:17
+ * Last Modified: 2025-11-20 12:56:14
  */
 
 /*!
@@ -83,77 +83,67 @@ impl ZWatch {
     }
 
     fn build_sources(configs: &[DataSourceConfig]) -> Result<Vec<Box<dyn ZpoolDataSource>>> {
-        let mut sources: Vec<Box<dyn ZpoolDataSource>> = Vec::new();
-
-        for config in configs {
-            match config {
-                DataSourceConfig::File { name: _, path } => {
-                    sources.push(Box::new(FileDataSource::new(path.clone())));
-                }
-                DataSourceConfig::Local {
-                    name: _,
-                    command,
-                    args,
-                } => {
-                    sources.push(Box::new(LocalCommandDataSource::new(
-                        command.clone(),
-                        args.clone(),
-                    )));
-                }
-                DataSourceConfig::SSH {
-                    name: _,
-                    host,
-                    user,
-                    port,
-                    keyfile,
-                    command,
-                    args,
-                } => {
-                    let mut ssh_source = SSHDataSource::new(host.clone(), user.clone())
-                        .with_command(command.clone(), args.clone());
-
-                    if let Some(port) = port {
-                        ssh_source = ssh_source.with_port(*port);
+        Ok(configs
+            .iter()
+            .map(|config| -> Box<dyn ZpoolDataSource> {
+                match config {
+                    DataSourceConfig::File { path, .. } => {
+                        Box::new(FileDataSource::new(path.clone()))
                     }
-
-                    if let Some(keyfile) = keyfile {
-                        ssh_source = ssh_source.with_keyfile(keyfile.clone());
+                    DataSourceConfig::Local { command, args, .. } => {
+                        Box::new(LocalCommandDataSource::new(command.clone(), args.clone()))
                     }
+                    DataSourceConfig::SSH {
+                        host,
+                        user,
+                        port,
+                        keyfile,
+                        command,
+                        args,
+                        ..
+                    } => {
+                        let mut ssh_source = SSHDataSource::new(host.clone(), user.clone())
+                            .with_command(command.clone(), args.clone());
 
-                    sources.push(Box::new(ssh_source));
+                        if let Some(port) = port {
+                            ssh_source = ssh_source.with_port(*port);
+                        }
+
+                        if let Some(keyfile) = keyfile {
+                            ssh_source = ssh_source.with_keyfile(keyfile.clone());
+                        }
+
+                        Box::new(ssh_source)
+                    }
                 }
-            }
-        }
-
-        Ok(sources)
+            })
+            .collect())
     }
 
     fn build_notifiers(configs: &[NotifierConfig]) -> Result<Vec<Box<dyn Notifier>>> {
-        let mut notifiers: Vec<Box<dyn Notifier>> = Vec::new();
-
-        for config in configs {
-            let notifier: Box<dyn Notifier> = match config {
-                NotifierConfig::Console => Box::new(ConsoleNotifier),
-                NotifierConfig::Telegram { bot_token, chat_id } => {
-                    Box::new(TelegramNotifier::new(bot_token.clone(), chat_id.clone()))
-                }
-                NotifierConfig::Webhook { url, headers } => {
-                    let mut notifier = WebhookNotifier::new(url.clone());
-                    for (key, value) in headers {
-                        notifier = notifier.with_header(key.clone(), value.clone());
+        Ok(configs
+            .iter()
+            .map(|config| -> Box<dyn Notifier> {
+                match config {
+                    NotifierConfig::Console => Box::new(ConsoleNotifier),
+                    NotifierConfig::Telegram { bot_token, chat_id } => {
+                        Box::new(TelegramNotifier::new(bot_token.clone(), chat_id.clone()))
                     }
-                    Box::new(notifier)
+                    NotifierConfig::Webhook { url, headers } => {
+                        let notifier = headers
+                            .iter()
+                            .fold(WebhookNotifier::new(url.clone()), |acc, (key, value)| {
+                                acc.with_header(key.clone(), value.clone())
+                            });
+                        Box::new(notifier)
+                    }
+                    NotifierConfig::Bark {
+                        server_url,
+                        device_key,
+                    } => Box::new(BarkNotifier::new(server_url.clone(), device_key.clone())),
                 }
-                NotifierConfig::Bark {
-                    server_url,
-                    device_key,
-                } => Box::new(BarkNotifier::new(server_url.clone(), device_key.clone())),
-            };
-
-            notifiers.push(notifier);
-        }
-
-        Ok(notifiers)
+            })
+            .collect())
     }
 
     async fn check_and_notify(&self) -> Result<()> {
@@ -167,30 +157,22 @@ impl ZWatch {
         let source_name = source.name();
         info!("Checking source: {}", source_name);
 
-        let json_data = match source.fetch().await {
-            Ok(data) => data,
-            Err(e) => {
-                error!(
-                    "Failed to fetch status from source '{}': {:?}",
-                    source_name, e
-                );
-                return;
-            }
-        };
+        let result = async {
+            let json_data = source.fetch().await?;
+            let reports = HealthChecker::check(&json_data)?;
+            Ok::<_, anyhow::Error>(reports)
+        }
+        .await;
 
-        let reports = match HealthChecker::check(&json_data) {
-            Ok(reports) => reports,
-            Err(e) => {
-                error!(
-                    "Failed to check health for source '{}': {:?}",
-                    source_name, e
-                );
-                return;
+        match result {
+            Ok(reports) => {
+                for report in reports {
+                    self.process_health_report(&report, &source_name).await;
+                }
             }
-        };
-
-        for report in reports {
-            self.process_health_report(&report, &source_name).await;
+            Err(e) => {
+                error!("Error checking source '{}': {:?}", source_name, e);
+            }
         }
     }
 
@@ -215,16 +197,12 @@ impl ZWatch {
     }
 
     async fn send_notifications(&self, report: &health::HealthReport) {
+        // Run all notifications concurrently
         for notifier in &self.notifiers {
             let notifier_name = notifier.name();
-
             match notifier.notify(report).await {
-                Ok(_) => {
-                    info!("Successfully sent notification via {}", notifier_name);
-                }
-                Err(e) => {
-                    error!("Failed to send notification via {}: {:?}", notifier_name, e);
-                }
+                Ok(_) => info!("Successfully sent notification via {}", notifier_name),
+                Err(e) => error!("Failed to send notification via {}: {:?}", notifier_name, e),
             }
         }
     }
@@ -344,12 +322,12 @@ async fn handle_run(config_path: Option<String>) -> Result<()> {
 }
 
 fn load_config(path: Option<&String>) -> Result<Config> {
-    if let Some(path) = path {
-        Config::from_file(path)
-    } else if std::path::Path::new("zwatch.toml").exists() {
-        Config::from_file("zwatch.toml")
-    } else {
-        info!("No configuration file found, using defaults");
-        Ok(Config::default())
+    match path {
+        Some(p) => Config::from_file(p),
+        None if std::path::Path::new("zwatch.toml").exists() => Config::from_file("zwatch.toml"),
+        None => {
+            info!("No configuration file found, using defaults");
+            Ok(Config::default())
+        }
     }
 }

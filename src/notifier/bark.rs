@@ -53,10 +53,11 @@ impl Notifier for BarkNotifier {
 
         let response = self.client.get(&url).send().await?;
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            anyhow::bail!("Bark error: {}", error_text);
-        }
+        anyhow::ensure!(
+            response.status().is_success(),
+            "Bark error: {}",
+            response.text().await?
+        );
 
         Ok(())
     }
