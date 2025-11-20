@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:55:16
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-20 14:19:54
+ * Last Modified: 2025-11-20 14:47:28
  */
 
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ pub enum DataSourceConfig {
         host: String,
         user: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        port: Option<u32>,
+        port: Option<u16>,
         #[serde(skip_serializing_if = "Option::is_none")]
         keyfile: Option<String>,
         #[serde(default = "default_command")]

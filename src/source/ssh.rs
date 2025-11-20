@@ -9,7 +9,7 @@
  * File Created: 2025-11-17 15:51:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-20 14:28:56
+ * Last Modified: 2025-11-20 14:49:09
  */
 
 use crate::source::ZpoolDataSource;
@@ -19,13 +19,13 @@ use openssh::{Session, SessionBuilder};
 use serde_json::Value;
 use tracing::warn;
 
-const DEFAULT_SSH_PORT: u32 = 22;
+const DEFAULT_SSH_PORT: u16 = 22;
 
 /// Fetch zpool status via SSH from a remote host
 pub struct SSHDataSource {
     pub host: String,
     pub user: String,
-    pub port: Option<u32>,
+    pub port: Option<u16>,
     pub keyfile: Option<String>,
     pub command: String,
     pub args: Vec<String>,
@@ -43,13 +43,17 @@ impl SSHDataSource {
         }
     }
 
-    pub fn with_port(mut self, port: u32) -> Self {
-        if port == 0 || port > 65535 {
-            warn!("Port number must be between 1 and 65535");
-            return self;
-        }
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = Some(if port == 0 {
+            warn!(
+                "Invalid SSH port 0 specified, using default port {}",
+                DEFAULT_SSH_PORT
+            );
+            DEFAULT_SSH_PORT
+        } else {
+            port
+        });
 
-        self.port = Some(port);
         self
     }
 
